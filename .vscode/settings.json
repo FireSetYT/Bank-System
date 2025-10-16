@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "text_encoding": "cpp",
+        "typeinfo": "cpp",
+        "iostream": "cpp",
+        "ostream": "cpp",
+        "limits": "cpp"
+    }
+}
