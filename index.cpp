@@ -402,7 +402,7 @@ int main() {
                     userMenu(*current, clients);
                 break;
             }
-            case 0: cout << " До побачення!\n"; break;
+            case 0: cout << " До побачення\n"; break;
             default: cout << " Невірна опція\n";
         }
     } while (option != 0);
