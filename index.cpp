@@ -8,6 +8,7 @@
 #include <limits>
 
 using namespace std;
+
 void clearConsole();
 void waitForReturnToMenu();
 
@@ -77,39 +78,21 @@ struct Client {
 };
 
 
-void sortAccountsByBalance(Client& c);
-void filterAccountsByType(const Client& c);
-void filterAccountsByOwner(const vector<Client>& clients);
-
-
 void clearConsole() {
-    #ifdef _WIN32
-        system("cls");
-    #else
-        system("clear");
-    #endif
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
 }
 
 void waitForReturnToMenu() {
-    char key;
-    cout << "\n Бажаєте повернутись до меню? (y/n): ";
-    while (true) {
-        cin >> key;
-        key = tolower(key);
-
-        if (key == 'y') {
-            system("cls");
-            break;
-        } else if (key == 'n') {
-            cout << " Вихід скасовано. Залишаємося на поточному екрані.\n";
-            break;
-        } else {
-            cout << " Некоректне введення. Введіть 'y' (так) або 'n' (ні): ";
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        }
-    }
+    cout << "\nНатисніть Enter, щоб повернутися...";
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.get();
+    clearConsole();
 }
+
 
 void saveClientsToFile(const vector<Client>& clients) {
     ofstream file("clients.txt");
@@ -123,12 +106,47 @@ void saveClientsToFile(const vector<Client>& clients) {
     file.close();
 }
 
-void saveTransactions(const Client& c) {
-    ofstream file("transactions_" + c.login + ".txt", ios::app);
-    for (const auto& t : c.history) {
-        file << t.fromAccount << "," << t.toAccount << "," << t.amount << "," << t.fee << "\n";
+vector<Client> loadClientsFromFile() {
+    vector<Client> clients;
+    ifstream file("clients.txt");
+    if (!file.is_open()) {
+        return clients;
     }
+
+    string line;
+    Client current;
+    while (getline(file, line)) {
+        if (line == "----") {
+            clients.push_back(current);
+            current = Client();
+            continue;
+        }
+
+        // Клієнт
+        if (count(line.begin(), line.end(), ',') == 2) {
+            size_t pos1 = line.find(',');
+            size_t pos2 = line.find(',', pos1 + 1);
+            current.login = line.substr(0, pos1);
+            current.password = line.substr(pos1 + 1, pos2 - pos1 - 1);
+            current.name = line.substr(pos2 + 1);
+        }
+        // Рахунок
+        else if (count(line.begin(), line.end(), ',') == 3) {
+            size_t pos1 = line.find(',');
+            size_t pos2 = line.find(',', pos1 + 1);
+            size_t pos3 = line.find(',', pos2 + 1);
+            BankAccount acc;
+            acc.accountNumber = line.substr(0, pos1);
+            acc.type = static_cast<AccountType>(stoi(line.substr(pos1 + 1, pos2 - pos1 - 1)));
+            acc.balance = stod(line.substr(pos2 + 1, pos3 - pos2 - 1));
+            acc.isPrimary = stoi(line.substr(pos3 + 1));
+            current.accounts.push_back(acc);
+        }
+    }
+
+    if (!current.login.empty()) clients.push_back(current);
     file.close();
+    return clients;
 }
 
 void registerClient(vector<Client>& clients) {
@@ -145,21 +163,22 @@ void registerClient(vector<Client>& clients) {
 
     for (const auto& cl : clients) {
         if (cl.login == c.login) {
-            cout << " Такий логін вже існує.\n";
+            cout << "Такий логін вже існує.\n";
+            waitForReturnToMenu();
             return;
         }
     }
 
     clients.push_back(c);
-    cout << " Клієнта зареєстровано!\n";
     saveClientsToFile(clients);
+    cout << "Клієнта зареєстровано!\n";
     waitForReturnToMenu();
 }
 
 Client* loginClient(vector<Client>& clients) {
     clearConsole();
     string login, password;
-    cout << "\n Вхід у систему\n";
+    cout << "Вхід у систему\n";
     cout << "Логін: ";
     cin >> login;
     cout << "Пароль: ";
@@ -167,13 +186,18 @@ Client* loginClient(vector<Client>& clients) {
 
     for (auto& c : clients) {
         if (c.login == login && c.password == password) {
-            cout << " Вхід успішний! Вітаємо, " << c.name << "!\n";
+            cout << "\nВхід успішний! Вітаємо, " << c.name << "!\n";
+            waitForReturnToMenu();
             return &c;
         }
     }
-    cout << " Невірні дані.\n";
+
+    cout << "Невірні дані.\n";
+    waitForReturnToMenu();
     return nullptr;
 }
+
+
 
 void addAccount(Client& c) {
     clearConsole();
@@ -240,12 +264,10 @@ void transfer(Client& sender, vector<Client>& clients) {
         return;
     }
 
-    // Перевірка на власні рахунки
     to = sender.findAccount(toAcc);
     if (to && from != to) {
         recipient = &sender;
     } else {
-        // Пошук в інших клієнтах
         for (auto& c : clients) {
             if (&c == &sender) continue;
             to = c.findAccount(toAcc);
@@ -278,15 +300,11 @@ void transfer(Client& sender, vector<Client>& clients) {
     sender.history.push_back(t);
     recipient->history.push_back(t);
 
-    saveTransactions(sender);
-    if (recipient != &sender) {
-        saveTransactions(*recipient);
-    }
+    saveClientsToFile(clients);
 
     cout << " Переказ успішний. Комісія: " << fee << " грн\n";
     waitForReturnToMenu();
 }
-
 
 void sortAccountsByBalance(Client& c) {
     clearConsole();
@@ -295,7 +313,6 @@ void sortAccountsByBalance(Client& c) {
     });
     cout << " Рахунки відсортовано за балансом (спадання):\n";
     showAccounts(c);
-    waitForReturnToMenu();
 }
 
 void filterAccountsByType(const Client& c) {
@@ -382,7 +399,7 @@ int main() {
     SetConsoleOutputCP(CP_UTF8);
     setlocale(LC_ALL, "uk_UA.UTF-8");
 
-    vector<Client> clients;
+    vector<Client> clients = loadClientsFromFile();
     int option;
 
     do {
